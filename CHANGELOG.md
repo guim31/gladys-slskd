@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-25
+
 ### Added
 
 - slskd device, read-only: download and upload speed, downloads in progress, waiting, completed
@@ -21,3 +23,6 @@ the notes of the version's GitHub Release.
 - Dashboard widget "slskd downloads": speed, downloads, time left, the files in progress,
   failures, uploads, last download, and a "Clear completed" button when allowed.
 - "Test the connection" button; texts and documentation in English, French, German and Spanish.
+
+[Unreleased]: https://github.com/guim31/gladys-slskd/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/guim31/gladys-slskd/releases/tag/v1.0.0
