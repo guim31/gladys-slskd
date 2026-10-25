@@ -1,0 +1,32 @@
+[
+  {
+    "username": "gladys-test-b",
+    "directories": [
+      {
+        "directory": "share",
+        "fileCount": 1,
+        "files": [
+          {
+            "id": "e11c8247-3e69-425f-a31b-284c050bc73a",
+            "username": "gladys-test-b",
+            "direction": "Download",
+            "filename": "share\\gladys-test-free-noise.bin",
+            "size": 3000000,
+            "state": "InProgress",
+            "requestedAt": "2026-10-25T16:06:56.8657927",
+            "enqueuedAt": "2026-10-25T16:06:56.9054536",
+            "startedAt": "2026-10-25T16:06:56.9571335Z",
+            "bytesTransferred": 1028080,
+            "averageSpeed": 96350.78000593535,
+            "attempts": 1,
+            "removed": false,
+            "bytesRemaining": 1971920,
+            "elapsedTime": "00:00:10.7871219",
+            "percentComplete": 34.269333333333336,
+            "remainingTime": "00:00:20.4660512"
+          }
+        ]
+      }
+    ]
+  }
+]

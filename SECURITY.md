@@ -32,4 +32,16 @@ In scope: the code of this repository and the Docker image it publishes.
 
 Out of scope: Gladys Assistant itself (see its
 [security policy](https://github.com/GladysAssistant/Gladys/security/policy)),
-and the third-party services and devices the integration talks to.
+and slskd itself (see [slskd](https://github.com/slskd/slskd)).
+
+What the integration handles:
+
+- the slskd API key, stored by Gladys in the integration configuration and
+  sent only to the configured slskd address, in the `X-API-Key` header; it is
+  never logged;
+- `/data/slskd-state.json`: the ids of the transfers already announced, the
+  name of the last file downloaded, whether slskd was on the Soulseek network;
+- network: HTTP(S) requests to the configured slskd address only, on the local
+  network. The integration never talks to the Soulseek network, and its one
+  command (off by default) only removes completed downloads from the list of
+  slskd.

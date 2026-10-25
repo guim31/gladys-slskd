@@ -1,0 +1,34 @@
+[
+  {
+    "username": "gladys-test-b",
+    "directories": [
+      {
+        "directory": "share",
+        "fileCount": 1,
+        "files": [
+          {
+            "id": "26304c20-1440-4dfe-b166-ebb76e63e173",
+            "username": "gladys-test-b",
+            "direction": "Download",
+            "filename": "share\\gladys-test-free-noise.bin",
+            "size": 3000000,
+            "state": "Queued, Locally",
+            "requestedAt": "2026-10-25T16:07:46.4729927",
+            "enqueuedAt": "2026-10-25T16:07:46.5028161",
+            "startedAt": "2026-10-25T16:08:53.5476476Z",
+            "endedAt": "2026-10-25T16:08:53.5476476Z",
+            "bytesTransferred": 0,
+            "averageSpeed": -600920000,
+            "exception": "User gladys-test-b appears to be offline",
+            "attempts": 3,
+            "removed": false,
+            "bytesRemaining": 3000000,
+            "elapsedTime": "00:00:00",
+            "percentComplete": 0,
+            "remainingTime": "-00:00:00.0049923"
+          }
+        ]
+      }
+    ]
+  }
+]
