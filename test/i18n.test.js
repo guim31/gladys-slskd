@@ -146,7 +146,7 @@ test('the catalog description holds 10 characters at least in every language', (
 test('every message table of the code has the four languages', () => {
   // Widget texts shown as tiles, rows or buttons are short; the others are messages.
   const longWidgetTexts = new Set(['pick']);
-  const statusTexts = new Set(['last', 'failed', 'uploads']);
+  const statusTexts = new Set(['last', 'failed', 'uploads', 'waiting']);
   const found = [
     ...problems(INIT_FAILED, 'INIT_FAILED', MAX.message),
     ...Object.entries(CONNECTION_TEXT).flatMap(([key, value]) =>

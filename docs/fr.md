@@ -145,4 +145,5 @@ présente au premier démarrage ne l'est pas.
   quand vous la videz.
 - Le délai des déclencheurs est l'intervalle de rafraîchissement. Un téléchargement qui commence
   et finit entre deux lectures est quand même annoncé, tant qu'il est encore dans la liste.
+- Une nouvelle adresse repart de zéro : ce qui s'est terminé pendant le changement n'est pas annoncé.
 - Sans lien avec slskd ni Soulseek.

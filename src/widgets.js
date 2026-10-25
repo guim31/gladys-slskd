@@ -15,7 +15,7 @@
 
 import { WIDGET_COLORS } from '@gladysassistant/integration-sdk';
 import { MB, STATUSES } from './clients/model.js';
-import { WIDGET_KEY } from './hub.js';
+import { WIDGET_KEY, failing } from './hub.js';
 import { ERROR_TEXT, STATUS_TEXT, pick } from './texts.js';
 import { serverName } from './devices.js';
 
@@ -42,7 +42,12 @@ export const TEXT = {
     es: 'Descargas',
   },
   timeLeft: { en: 'Time left', fr: 'Temps restant', de: 'Restzeit', es: 'Tiempo restante' },
-  waiting: { en: 'waiting', fr: 'en attente', de: 'wartend', es: 'en espera' },
+  waiting: {
+    en: 'Downloads waiting',
+    fr: 'Téléchargements en attente',
+    de: 'Wartende Downloads',
+    es: 'Descargas en espera',
+  },
   failed: {
     en: 'Failed downloads',
     fr: 'Téléchargements en échec',
@@ -154,6 +159,14 @@ export function rows(hub, language) {
       color: WIDGET_COLORS.INFO,
     });
   }
+  if (snapshot.queuedDownloads > 0) {
+    items.push({
+      label: t(TEXT.waiting, language),
+      icon: 'list',
+      value: snapshot.queuedDownloads,
+      color: WIDGET_COLORS.INFO,
+    });
+  }
   if (snapshot.failed.length > 0) {
     items.push({
       label: t(TEXT.failed, language),
@@ -186,9 +199,11 @@ async function get(hub, { language = 'en' }) {
   if (!hub.record) {
     return message(TEXT.pick, language);
   }
-  const { snapshot, error } = hub.record;
+  const { snapshot } = hub.record;
+  // A single failed reading (a blip) keeps the last figures.
+  const answering = snapshot && !failing(hub.record);
   const components = [];
-  if (snapshot && !error) {
+  if (answering) {
     const speed = snapshot.downloadSpeedBps;
     components.push(
       {
@@ -202,12 +217,7 @@ async function get(hub, { language = 'en' }) {
       {
         type: 'value',
         value: snapshot.activeDownloads,
-        label: fit(
-          snapshot.queuedDownloads
-            ? `${t(TEXT.downloads, language)} (+${snapshot.queuedDownloads} ${t(TEXT.waiting, language)})`
-            : t(TEXT.downloads, language),
-          40,
-        ),
+        label: t(TEXT.downloads, language),
         icon: 'list',
       },
       {
@@ -228,7 +238,7 @@ async function get(hub, { language = 'en' }) {
       action: { key: ACTIONS.CLEAR },
     });
   }
-  const moving = snapshot && !error && snapshot.activeDownloads > 0;
+  const moving = answering && snapshot.activeDownloads > 0;
   // A download moves: refresh sooner.
   return { ttl_seconds: moving ? 15 : 60, components };
 }

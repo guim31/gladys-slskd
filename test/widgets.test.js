@@ -17,11 +17,14 @@ async function world(t, config = CONFIG) {
 }
 
 async function content(w, language = 'en') {
+  // Every language within the budget (labels are cut beyond their length).
+  for (const other of ['en', 'fr', 'de', 'es']) {
+    const ack = await w.fake.widgetGet(WIDGET_KEY, { settings: {}, language: other });
+    assert.equal(ack.success, true, ack.error);
+    assert.deepEqual(validateWidgetContent(ack.data.content), [], `budget (${other})`);
+  }
   const ack = await w.fake.widgetGet(WIDGET_KEY, { settings: {}, language });
-  assert.equal(ack.success, true, ack.error);
-  const { content: tree } = ack.data;
-  assert.deepEqual(validateWidgetContent(tree), [], 'within the core vocabulary and budget');
-  return tree;
+  return ack.data.content;
 }
 
 const ofType = (tree, type) => tree.components.filter((component) => component.type === type);
@@ -38,7 +41,7 @@ test('downloading: speed, downloads, time left, one row per file, no button by d
     ofType(tree, 'value').map(({ label, value, unit }) => [label, value, unit]),
     [
       ['Speed', 1.5, 'MB/s'],
-      ['Downloads (+1 waiting)', 2, undefined],
+      ['Downloads', 2, undefined],
       ['Time left', '1 h 10', undefined],
     ],
   );
@@ -48,6 +51,7 @@ test('downloading: speed, downloads, time left, one row per file, no button by d
       ['Soulseek', 'Downloading'],
       ['A.flac', '75 % · 2 min'],
       ['B.flac', '10 % · 1 h 10'],
+      ['Downloads waiting', 1],
       ['Failed downloads', 1],
       ['Uploads in progress', 1],
       ['Last download', 'gladys-test-free-noise.bin'],

@@ -232,10 +232,23 @@ export function deviceStates(gladys, snapshot, context) {
   return states;
 }
 
-/** The single "Unreachable" status of an slskd that stopped answering. */
-export function unreachableState(gladys, language) {
-  return {
-    device_feature_external_id: deviceIds(gladys).feature(FEATURE_KEYS.STATUS),
-    text: pick(STATUS_TEXT.unreachable, language),
-  };
+/**
+ * The states of an slskd that stopped answering: "Unreachable", and nothing
+ * moving (speeds and transfers in progress at 0) rather than the last values
+ * frozen for hours. The list counters keep their value: unknown, not zero.
+ */
+export function unreachableStates(gladys, language) {
+  const ids = deviceIds(gladys);
+  return [
+    ...[
+      FEATURE_KEYS.DOWNLOAD_SPEED,
+      FEATURE_KEYS.UPLOAD_SPEED,
+      FEATURE_KEYS.ACTIVE,
+      FEATURE_KEYS.UPLOADS,
+    ].map((key) => ({ device_feature_external_id: ids.feature(key), state: 0 })),
+    {
+      device_feature_external_id: ids.feature(FEATURE_KEYS.STATUS),
+      text: pick(STATUS_TEXT.unreachable, language),
+    },
+  ];
 }

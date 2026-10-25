@@ -24,7 +24,7 @@ import { DEVICE_TRANSPORTS, createLogger } from '@gladysassistant/integration-sd
 import { ClientError, ERROR_KINDS } from './clients/errors.js';
 import { MB } from './clients/model.js';
 import { SlskdClient } from './clients/slskd.js';
-import { buildDevice, deviceIds, deviceStates, serverName, unreachableState } from './devices.js';
+import { buildDevice, deviceIds, deviceStates, serverName, unreachableStates } from './devices.js';
 import {
   ACTION_TEXT,
   CONNECTION_TEXT,
@@ -62,12 +62,14 @@ export const HUB_TIMINGS = {
 
 // The SDK refuses a scene event text over 1000 characters.
 const MAX_EVENT_TEXT = 500;
+// Download events sent per reading at most (the core takes 300 events a minute).
+export const MAX_EVENTS_PER_READING = 30;
 const eventText = (text) => String(text ?? '').slice(0, MAX_EVENT_TEXT);
 // A blip (one failed reading of a network error) is not shown as an outage:
 // slskd is failing once down (two readings), or at once for an error the user
 // must fix (key, address, certificate).
 const TRANSIENT_KINDS = new Set([ERROR_KINDS.UNREACHABLE, ERROR_KINDS.HTTP]);
-const failing = (record) =>
+export const failing = (record) =>
   record.error !== null && (record.down || !TRANSIENT_KINDS.has(record.error.kind));
 
 const signature = (server, config) =>
@@ -151,9 +153,13 @@ export class SlskdHub {
     } else if (server) {
       this.record = this.newRecord(server, config);
     }
-    await this.publishDevices();
-    await this.pollAll({ manual: true });
-    this.schedulePoll();
+    try {
+      await this.publishDevices();
+      await this.pollAll({ manual: true });
+    } finally {
+      // Even when Gladys refused the devices (it is starting): keep reading.
+      this.schedulePoll();
+    }
   }
 
   newRecord(server, config) {
@@ -336,20 +342,19 @@ export class SlskdHub {
     }
     if (!TRANSIENT_KINDS.has(err.kind)) {
       record.failures = 0;
-      if (!record.down) {
-        record.down = true; // the states would otherwise freeze on the last reading
-        await this.publishStates();
-      }
+      record.down = true; // the states would otherwise freeze on the last reading
+      await this.publishStates(); // deduplicated; the heartbeat keeps it fresh
       return wasError !== err.kind;
     }
     record.failures += 1;
     if (record.failures === 1) {
       this.scheduleRetry(record);
     }
-    if (!record.down && record.failures >= this.timings.downAfterFailures) {
+    if (record.failures >= this.timings.downAfterFailures) {
+      const wasDown = record.down;
       record.down = true;
-      await this.publishStates();
-      return true;
+      await this.publishStates(); // deduplicated; the heartbeat keeps it fresh
+      return !wasDown || wasError !== err.kind;
     }
     return wasError !== err.kind;
   }
@@ -410,10 +415,24 @@ export class SlskdHub {
     }
     const knownSucceeded = new Set(entry.succeeded);
     const knownFailed = new Set(entry.failed);
-    // Oldest first, so "last download" ends on the newest one.
-    const completed = snapshot.succeeded.filter((file) => !knownSucceeded.has(file.id)).reverse();
-    const failed = snapshot.failed.filter((file) => !knownFailed.has(file.id));
-    const emptied = entry.pending === true && !state.pending;
+    // Oldest first, so "last download" ends on the newest one. At most
+    // MAX_EVENTS_PER_READING files per reading (the core takes 300 events a
+    // minute): the others stay unseen and go out with the next readings.
+    let budget = MAX_EVENTS_PER_READING;
+    const take = (list) => {
+      const taken = list.slice(0, Math.max(0, budget));
+      budget -= taken.length;
+      return taken;
+    };
+    const newSucceeded = snapshot.succeeded.filter((file) => !knownSucceeded.has(file.id));
+    const newFailed = snapshot.failed.filter((file) => !knownFailed.has(file.id));
+    const completed = take([...newSucceeded].reverse());
+    const failed = take(newFailed);
+    const unseen = newSucceeded.length + newFailed.length - completed.length - failed.length;
+    // A download can start and end between two readings: it empties the
+    // queue all the same.
+    const emptied =
+      !state.pending && (entry.pending === true || completed.length + failed.length > 0);
     const lost = entry.network === true && network === false;
     const restored = entry.network === false && network === true;
     const changed =
@@ -426,45 +445,80 @@ export class SlskdHub {
     if (!changed) {
       return;
     }
-    const last = completed.length ? completed[completed.length - 1].name : entry.last;
-    this.saved.seen = { ...state, last: last ?? null };
-    this.store.save(this.saved);
+    // An event Gladys refuses (it restarts, a 429) is not marked as seen: the
+    // next reading sends it again.
+    const refused = new Set();
+    let savedNetwork = network;
     if (lost) {
       logger.info(`${this.label(record)}: Soulseek network lost`);
-      await this.fire(TRIGGERS.NETWORK_LOST, record, {});
+      if (!(await this.fire(TRIGGERS.NETWORK_LOST, {}))) {
+        savedNetwork = entry.network;
+      }
     }
     if (restored) {
       logger.info(`${this.label(record)}: Soulseek network back`);
-      await this.fire(TRIGGERS.NETWORK_RESTORED, record, {});
+      if (!(await this.fire(TRIGGERS.NETWORK_RESTORED, {}))) {
+        savedNetwork = entry.network;
+      }
     }
+    let last = entry.last;
     for (const file of completed) {
       logger.debug(`${this.label(record)}: completed "${file.name}"`);
-      await this.fire(TRIGGERS.COMPLETED, record, {
+      const sent = await this.fire(TRIGGERS.COMPLETED, {
         name: eventText(file.name),
         user: eventText(file.user),
         size_mb: Math.round((file.bytes / MB) * 10) / 10,
       });
+      if (sent) {
+        last = file.name;
+      } else {
+        refused.add(file.id);
+      }
     }
     for (const file of failed) {
       logger.debug(`${this.label(record)}: failed "${file.name}"`);
-      await this.fire(TRIGGERS.FAILED, record, {
+      const sent = await this.fire(TRIGGERS.FAILED, {
         name: eventText(file.name),
         user: eventText(file.user),
         reason: eventText(file.reason),
       });
+      if (!sent) {
+        refused.add(file.id);
+      }
     }
-    if (emptied) {
+    let pending = state.pending;
+    if (emptied && unseen === 0 && refused.size === 0) {
       logger.debug(`${this.label(record)}: nothing left to download`);
-      await this.fire(TRIGGERS.QUEUE_EMPTY, record, {});
+      if (!(await this.fire(TRIGGERS.QUEUE_EMPTY, {}))) {
+        pending = entry.pending;
+      }
+    } else if (emptied) {
+      pending = true; // announced once every file is
     }
+    // Files not announced yet (refused, or beyond the budget) stay unseen.
+    const announced = new Set([...completed, ...failed].map((file) => file.id));
+    const keep = (ids, known) =>
+      ids.filter((id) => known.has(id) || (announced.has(id) && !refused.has(id)));
+    this.saved.seen = {
+      key,
+      succeeded: keep(state.succeeded, knownSucceeded),
+      failed: keep(state.failed, knownFailed),
+      pending,
+      network: savedNetwork,
+      last: last ?? null,
+    };
+    this.store.save(this.saved);
   }
 
-  async fire(key, record, data) {
+  /** Publish a scene event; resolves with whether Gladys took it. */
+  async fire(key, data) {
     try {
       await this.gladys.publishSceneEvent(key, data);
       this.resolved('scene-event');
+      return true;
     } catch (err) {
       this.problem('scene-event', `Scene event ${key} refused: ${err.message}`);
+      return false;
     }
   }
 
@@ -492,7 +546,7 @@ export class SlskdHub {
         lastCompleted: this.lastCompleted(),
       });
     } else if (record.down) {
-      states = [unreachableState(this.gladys, language)];
+      states = unreachableStates(this.gladys, language);
     } else {
       return;
     }
@@ -600,7 +654,7 @@ export class SlskdHub {
     // Read first: the count says what the user sees go.
     await this.poll(record, { manual: true });
     const before = record.snapshot
-      ? record.snapshot.succeeded.length + record.snapshot.failed.length
+      ? record.snapshot.succeeded.length + record.snapshot.failed.length + record.snapshot.cancelled
       : 0;
     try {
       record.epoch += 1;

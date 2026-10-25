@@ -76,6 +76,12 @@ export const ERROR_TEXT = {
     de: 'unerwartete Antwort, sieh in den Protokollen nach',
     es: 'respuesta inesperada, consulte los registros',
   },
+  [ERROR_KINDS.TOO_LARGE]: {
+    en: 'transfer list too long: clear the completed downloads in slskd',
+    fr: 'liste des transferts trop longue : videz les téléchargements terminés dans slskd',
+    de: 'Transferliste zu lang: Leere die fertigen Downloads in slskd',
+    es: 'lista de transferencias demasiado larga: vacíe las descargas completadas en slskd',
+  },
   [ERROR_KINDS.CLEAR_OFF]: {
     en: 'clearing is off: allow it in the configuration of the integration',
     fr: "le nettoyage est désactivé : autorisez-le dans la configuration de l'intégration",

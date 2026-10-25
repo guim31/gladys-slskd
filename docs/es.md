@@ -140,4 +140,5 @@ presente en el primer arranque no.
   la vacía.
 - El retraso de los disparadores es el intervalo de actualización. Una descarga que empieza y
   termina entre dos lecturas se anuncia igualmente, mientras siga en la lista.
+- Una nueva dirección empieza el seguimiento de cero: lo que terminó durante el cambio no se anuncia.
 - Sin relación con slskd ni Soulseek.

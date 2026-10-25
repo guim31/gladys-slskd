@@ -53,7 +53,9 @@ export function httpRequest(
         response.on('data', (chunk) => {
           size += chunk.length;
           if (size > MAX_BODY_BYTES) {
-            request.destroy(new Error('Response too large'));
+            const error = new Error('Response too large');
+            error.code = 'ERESPONSETOOLARGE';
+            request.destroy(error);
             return;
           }
           chunks.push(chunk);

@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { FEATURE_KEYS } from '../src/devices.js';
-import { TRIGGERS } from '../src/hub.js';
+import { MAX_EVENTS_PER_READING, TRIGGERS } from '../src/hub.js';
 import { CONFIG, FakeSlskd, createAll, createWorld, deviceId, featureId } from './helpers/world.js';
 
 async function world(t, options = {}) {
@@ -264,4 +264,100 @@ test('test the connection: version and state, or the reason', async (t) => {
   w.slskd.online = false;
   const down = await w.fake.action('test_connection', {});
   assert.match(down.data.message.de, /Soulseek: slskd antwortet nicht/);
+});
+
+test('an event Gladys refuses is sent again at the next reading, not lost', async (t) => {
+  const w = await world(t);
+  const id = w.slskd.addDownload({ name: 'Retry.flac' });
+  await w.hub.pollAll();
+  w.slskd.complete(id);
+  const original = w.gladys.publishSceneEvent.bind(w.gladys);
+  let refuse = true;
+  t.mock.method(w.gladys, 'publishSceneEvent', async (key, data) => {
+    if (refuse) {
+      throw new Error('Gladys is restarting');
+    }
+    return original(key, data);
+  });
+  await w.hub.pollAll();
+  assert.equal(events(w, TRIGGERS.COMPLETED).length, 0);
+  refuse = false;
+  await w.hub.pollAll();
+  await w.hub.pollAll();
+  assert.deepEqual(
+    w.fake.sceneEvents.map((event) => [event.key, event.data.name]),
+    [
+      [TRIGGERS.COMPLETED, 'Retry.flac'],
+      [TRIGGERS.QUEUE_EMPTY, undefined],
+    ],
+  );
+});
+
+test('a burst of failures goes out over several readings, each file once', async (t) => {
+  const w = await world(t);
+  const ids = Array.from({ length: MAX_EVENTS_PER_READING + 10 }, (_, i) =>
+    w.slskd.addDownload({ name: `${i}.flac` }),
+  );
+  await w.hub.pollAll();
+  for (const id of ids) {
+    w.slskd.fail(id, 'User peer appears to be offline', 'Completed, Errored');
+  }
+  await w.hub.pollAll();
+  assert.equal(events(w, TRIGGERS.FAILED).length, MAX_EVENTS_PER_READING);
+  assert.equal(events(w, TRIGGERS.QUEUE_EMPTY).length, 0, 'not before every file is announced');
+  await w.hub.pollAll();
+  await w.hub.pollAll();
+  assert.equal(events(w, TRIGGERS.FAILED).length, ids.length);
+  assert.equal(new Set(events(w, TRIGGERS.FAILED).map((e) => e.data.name)).size, ids.length);
+  assert.equal(events(w, TRIGGERS.QUEUE_EMPTY).length, 1);
+});
+
+test('a download started and ended between two readings still empties the queue', async (t) => {
+  const w = await world(t);
+  const id = w.slskd.addDownload({ name: 'Quick.flac' });
+  w.slskd.complete(id);
+  // The first reading at start saw it already completed: start from a clean list.
+  w.slskd.downloads = w.slskd.downloads.filter((file) => file.id !== id);
+  await w.hub.pollAll();
+  w.slskd.downloads.push({ ...w.slskd.downloads[0], id: 'quick-id', filename: 'x\\Quick.flac' });
+  w.slskd.downloads.at(-1).state = 'Completed, Succeeded';
+  await w.hub.pollAll();
+  assert.equal(events(w, TRIGGERS.COMPLETED).length, 1);
+  assert.equal(events(w, TRIGGERS.QUEUE_EMPTY).length, 1);
+});
+
+test('Gladys refusing the devices at start does not stop the timer', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const w = await world(t, { connect: false, timers: true });
+  t.mock.method(w.gladys, 'publishDiscoveredDevices', async () => {
+    throw new Error('503');
+  });
+  await w.gladys.connect();
+  await w.app.ready;
+  assert.ok(w.hub.pollTimer, 'the next reading is scheduled');
+});
+
+test('slskd down: nothing moving, "Unreachable" kept fresh; a too long list is said', async (t) => {
+  const w = await world(t);
+  await createAll(w);
+  w.slskd.addDownload({ speed: 1024 * 1024 });
+  await w.hub.pollAll();
+  w.slskd.online = false;
+  await w.hub.pollAll();
+  await w.hub.pollAll();
+  assert.equal(w.fake.lastState(featureId(w.gladys, FEATURE_KEYS.DOWNLOAD_SPEED)), 0);
+  assert.equal(w.fake.lastState(featureId(w.gladys, FEATURE_KEYS.ACTIVE)), 0);
+  assert.equal(w.fake.lastState(featureId(w.gladys, FEATURE_KEYS.COMPLETED)), 2, 'unknown, kept');
+  w.slskd.online = true;
+  const big = new FakeSlskd();
+  big.handle = async (url, options) => {
+    if (url.endsWith('transfers/downloads')) {
+      const error = new Error('Response too large');
+      error.code = 'ERESPONSETOOLARGE';
+      throw error;
+    }
+    return FakeSlskd.prototype.handle.call(big, url, options);
+  };
+  const huge = await world(t, { slskd: big });
+  assert.match(huge.fake.connectionStatus.message.en, /transfer list too long/);
 });

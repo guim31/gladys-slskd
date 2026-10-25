@@ -137,4 +137,5 @@ at the first start is not.
   clear it.
 - The delay of the triggers is the refresh interval. A download that starts and ends between two
   readings is still announced, as long as it is still in the list.
+- A new address starts the follow-up again: what finished while you changed it is not announced.
 - Not affiliated with slskd or Soulseek.

@@ -98,10 +98,16 @@ export class SlskdClient {
     if (!application || typeof application !== 'object' || !application.server) {
       throw new ClientError(ERROR_KINDS.NOT_SLSKD, 'No slskd application state in the answer');
     }
-    const [downloads, uploads] = await Promise.all([
-      this.call('GET', 'transfers/downloads'),
-      this.call('GET', 'transfers/uploads'),
-    ]);
+    // One list after the other: both whole in memory at once could weigh on
+    // the 256 MB of the sandbox. The uploads only give a count: a list too
+    // long to read costs that count, not the device.
+    const downloads = await this.call('GET', 'transfers/downloads');
+    const uploads = await this.call('GET', 'transfers/uploads').catch((err) => {
+      if (err.kind === ERROR_KINDS.TOO_LARGE) {
+        return [];
+      }
+      throw err;
+    });
     return toSnapshot({ application, downloads, uploads });
   }
 

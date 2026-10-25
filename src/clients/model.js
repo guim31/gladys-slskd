@@ -16,6 +16,7 @@
 //   downloads          downloads in progress: { id, name, user, percent, etaSec }
 //   succeeded          downloads completed: { id, name, user, bytes, endedAt }
 //   failed             downloads that failed: { id, name, user, reason }
+//   cancelled          downloads the user cancelled, still in the list
 //
 // The transfer lists are the ones slskd keeps until they are cleared (its
 // interface, or the "clear" scene action): the counters of completed and
@@ -139,6 +140,7 @@ export function toSnapshot({ application, downloads, uploads }) {
   const files = { downloads: [], succeeded: [], failed: [] };
   let activeDownloads = 0;
   let queuedDownloads = 0;
+  let cancelled = 0;
   let downloadSpeedBps = 0;
   for (const file of flattenTransfers(downloads)) {
     const kind = transferKind(file.state);
@@ -156,6 +158,8 @@ export function toSnapshot({ application, downloads, uploads }) {
       });
     } else if (kind === 'queued') {
       queuedDownloads += 1;
+    } else if (kind === 'cancelled') {
+      cancelled += 1;
     } else if (kind === 'succeeded') {
       files.succeeded.push({
         id: file.id,
@@ -208,5 +212,6 @@ export function toSnapshot({ application, downloads, uploads }) {
     downloads: files.downloads.sort((a, b) => b.percent - a.percent),
     succeeded: files.succeeded,
     failed: files.failed,
+    cancelled,
   };
 }

@@ -141,4 +141,5 @@ Start schon vorhandene Liste nicht.
   wenn du sie leerst.
 - Die Verzögerung der Auslöser ist das Aktualisierungsintervall. Ein Download, der zwischen zwei
   Lesungen beginnt und endet, wird trotzdem gemeldet, solange er noch in der Liste steht.
+- Eine neue Adresse beginnt die Verfolgung von vorn: Was während der Änderung fertig wurde, wird nicht gemeldet.
 - Nicht mit slskd oder Soulseek verbunden.

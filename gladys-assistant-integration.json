@@ -449,7 +449,7 @@
         "de": "Ein Satz für eine Nachricht: Soulseek-Netzwerk, laufende und wartende Downloads, Fehler, Uploads.",
         "es": "Una frase para un mensaje: red Soulseek, descargas en curso y en espera, fallos, subidas."
       },
-      "timeout_seconds": 20,
+      "timeout_seconds": 30,
       "outputs": [
         {
           "key": "summary",
@@ -517,7 +517,7 @@
         "de": "Entfernt fertige Downloads (erfolgreich oder fehlgeschlagen) aus der Liste von slskd; die Dateien bleiben. Nur wenn in der Konfiguration erlaubt.",
         "es": "Quita las descargas completadas (correctas o fallidas) de la lista de slskd; los archivos se quedan. Solo si la configuración lo permite."
       },
-      "timeout_seconds": 20,
+      "timeout_seconds": 40,
       "outputs": [
         {
           "key": "cleared",
@@ -548,7 +548,7 @@
         "es": "Velocidad, descargas en curso con porcentaje y tiempo restante, fallos, subidas, última descarga."
       },
       "icon": "download",
-      "action_timeout_seconds": 20
+      "action_timeout_seconds": 40
     }
   ]
 }

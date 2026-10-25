@@ -12,6 +12,7 @@ export const ERROR_KINDS = Object.freeze({
   NOT_SLSKD: 'not_slskd', // something answers, not the API of slskd
   REDIRECT: 'redirect', // the address redirects (usually to HTTPS)
   HTTP: 'http', // any other answer the integration cannot use
+  TOO_LARGE: 'too_large', // a transfer list over 16 MB: it needs clearing in slskd
   CLEAR_OFF: 'clear_off', // clearing the list is not allowed in the configuration
 });
 
@@ -40,6 +41,9 @@ const TLS_CODES = new Set([
 
 /** A network failure of node:http(s), as a ClientError. */
 export function networkError(err) {
+  if (err.code === 'ERESPONSETOOLARGE') {
+    return new ClientError(ERROR_KINDS.TOO_LARGE, 'Transfer list over 16 MB');
+  }
   if (TLS_CODES.has(err.code)) {
     return new ClientError(ERROR_KINDS.TLS, `Certificate refused (${err.code})`);
   }
