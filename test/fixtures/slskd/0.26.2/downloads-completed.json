@@ -1,0 +1,72 @@
+[
+  {
+    "username": "gladys-test-b",
+    "directories": [
+      {
+        "directory": "share",
+        "fileCount": 3,
+        "files": [
+          {
+            "id": "dd4fce2e-3a91-4fff-8234-acdf816290d2",
+            "username": "gladys-test-b",
+            "direction": "Download",
+            "filename": "share\\gladys-test-free-file.txt",
+            "size": 46,
+            "state": "Completed, Succeeded",
+            "requestedAt": "2026-10-25T16:04:15.0440393",
+            "enqueuedAt": "2026-10-25T16:04:16.3480162",
+            "startedAt": "2026-10-25T16:04:16.5786218Z",
+            "endedAt": "2026-10-25T16:04:16.6214054Z",
+            "bytesTransferred": 46,
+            "averageSpeed": 1075.1783393636815,
+            "attempts": 1,
+            "removed": false,
+            "bytesRemaining": 0,
+            "elapsedTime": "00:00:00.0427836",
+            "percentComplete": 100,
+            "remainingTime": "00:00:00"
+          },
+          {
+            "id": "5a46d54b-e7bf-4f64-847a-5794ca976692",
+            "username": "gladys-test-b",
+            "direction": "Download",
+            "filename": "share\\gladys-test-free-noise.bin",
+            "size": 3000000,
+            "state": "Completed, Succeeded",
+            "requestedAt": "2026-10-25T16:04:15.1555258",
+            "enqueuedAt": "2026-10-25T16:04:16.3720506",
+            "startedAt": "2026-10-25T16:04:16.6409636Z",
+            "endedAt": "2026-10-25T16:04:16.6543535Z",
+            "bytesTransferred": 3000000,
+            "averageSpeed": 224049470.12300313,
+            "attempts": 1,
+            "removed": false,
+            "bytesRemaining": 0,
+            "elapsedTime": "00:00:00.0133899",
+            "percentComplete": 100,
+            "remainingTime": "00:00:00"
+          },
+          {
+            "id": "1fead4c5-5a8b-4ea1-b428-b3a4c8363c9d",
+            "username": "gladys-test-b",
+            "direction": "Download",
+            "filename": "share\\missing-file.flac",
+            "size": 1234,
+            "state": "Completed, Rejected",
+            "requestedAt": "2026-10-25T16:04:15.1593095",
+            "startedAt": "2026-10-25T16:04:15.2521096Z",
+            "endedAt": "2026-10-25T16:04:15.2521096Z",
+            "bytesTransferred": 0,
+            "averageSpeed": 0,
+            "exception": "Transfer rejected: File not shared.",
+            "attempts": 1,
+            "removed": false,
+            "bytesRemaining": 1234,
+            "elapsedTime": "00:00:00",
+            "percentComplete": 0
+          }
+        ]
+      }
+    ]
+  }
+]

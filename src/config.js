@@ -1,45 +1,107 @@
 // -----------------------------------------------------------------------------
-// Integration configuration.
+// Integration configuration: defaults (they mirror the `default` values of the
+// manifest `config_schema`, see test/manifest.test.js) and normalization, so
+// the rest of the code never deals with strings, blanks or `undefined`.
 //
-// The configuration is filled in by the user in Gladys, from the `config_schema`
-// declared in `gladys-assistant-integration.json`. The SDK fetches it for you
-// (`gladys.getConfig()`) and notifies you of every change through
-// `gladys.onConfigUpdated()`.
-//
-// This module only provides defaults and normalizes the received object, so the
-// rest of the code never has to deal with `undefined`.
+// One slskd instance: its address, its API key (empty when the authentication
+// of slskd is off), a name. The device identity does not depend on the
+// address: an IP changed for a host name, or HTTP for HTTPS, keeps the device
+// and its history.
 // -----------------------------------------------------------------------------
 
-// Defaults: they MUST stay consistent with the `default` values declared in the
-// `config_schema` of the manifest.
+export const LANGUAGES = ['en', 'fr', 'de', 'es'];
+
+// Port slskd listens on out of the box (HTTP), added to a bare host.
+export const DEFAULT_PORT = 5030;
+
+// Refresh intervals offered in the configuration, in seconds.
+export const POLL_INTERVALS = ['10', '30', '60', '120', '300'];
+
 export const DEFAULT_CONFIG = {
-  latitude: 48.8566, // Paris
-  longitude: 2.3522,
-  unit: 'celsius', // 'celsius' | 'fahrenheit'
-  // Seconds between two reads of the polled sensors. Gladys polls at most once
-  // a minute: slower intervals are applied by skipping polls (see
-  // createPoller in src/devices/index.js).
-  poll_frequency: 300,
-  // Reserved key (NOT in config_schema): because the manifest declares both
-  // 'local' and 'cloud' in its `transports` field, Gladys shows a standard
-  // "Prefer the local connection" toggle and sends the user's choice here.
-  // Read-only for the integration; defaults to true.
-  GLADYS_PREFER_LOCAL: true,
+  url: '',
+  api_key: '',
+  name: '',
+  allow_self_signed: false,
+  poll_interval: '30',
+  allow_clear: false,
+  language: 'fr',
 };
 
+const MAX_NAME_LENGTH = 40;
+
 /**
- * Merge the user config with the defaults.
- * @param {Record<string, unknown>} raw config returned by the SDK
+ * Parse the address typed by the user into a base URL: a bare host or IP
+ * (`192.0.2.10`, `nas.local:5030`), or the URL copied from the browser
+ * (`http://192.0.2.10:5030/downloads`). HTTP by default; a bare host without
+ * port gets port 5030. A path is kept (slskd may run under a `url_base`, or
+ * behind a reverse proxy), without a trailing page of the interface, `/api`
+ * or slash.
+ * @param {unknown} raw
+ * @returns {string|null} `http(s)://host[:port][/path]`, null when unusable
+ */
+export function parseServerUrl(raw) {
+  if (typeof raw !== 'string') {
+    return null;
+  }
+  const text = raw.trim();
+  if (!text) {
+    return null;
+  }
+  const hasScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(text);
+  let url;
+  try {
+    url = new URL(hasScheme ? text : `http://${text}`);
+  } catch {
+    return null;
+  }
+  if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) {
+    return null;
+  }
+  // Credentials in the address would end up in the logs and the device params.
+  if (url.username || url.password) {
+    return null;
+  }
+  if (!hasScheme && !url.port) {
+    url.port = String(DEFAULT_PORT);
+  }
+  const path = url.pathname
+    .replace(/\/+$/, '')
+    .replace(
+      /\/(api(\/v0)?|searches|downloads|uploads|browse|users|chat|rooms|system|contacts|login|wishlist)$/i,
+      '',
+    )
+    .replace(/\/+$/, '');
+  return `${url.origin}${path}`;
+}
+
+/** Host part shown to the user (no scheme). */
+export const hostOf = (url) => url.replace(/^https?:\/\//, '');
+
+/**
+ * @param {Record<string, unknown>} raw the configuration returned by the SDK
  */
 export function normalizeConfig(raw = {}) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  const text = (key) => (typeof source[key] === 'string' ? source[key].trim() : '');
+  const pick = (key, list) => {
+    const value = source[key] === undefined || source[key] === null ? '' : String(source[key]);
+    return list.includes(value) ? value : DEFAULT_CONFIG[key];
+  };
+  const typed = text('url');
+  const url = typed ? parseServerUrl(typed) : null;
+  const flag = (key) => source[key] === true || source[key] === 'true';
   return {
-    ...DEFAULT_CONFIG,
-    ...raw,
-    // Force the types: config may arrive as strings from a form.
-    latitude: Number(raw.latitude ?? DEFAULT_CONFIG.latitude),
-    longitude: Number(raw.longitude ?? DEFAULT_CONFIG.longitude),
-    poll_frequency: Number(raw.poll_frequency ?? DEFAULT_CONFIG.poll_frequency),
-    // The preference is a boolean; anything but an explicit false means true.
-    GLADYS_PREFER_LOCAL: raw.GLADYS_PREFER_LOCAL !== false,
+    server: url
+      ? {
+          url,
+          apiKey: text('api_key'),
+          name: text('name').slice(0, MAX_NAME_LENGTH) || null,
+        }
+      : null,
+    invalidUrl: Boolean(typed) && !url,
+    allowSelfSigned: flag('allow_self_signed'),
+    allowClear: flag('allow_clear'),
+    pollIntervalMs: Number(pick('poll_interval', POLL_INTERVALS)) * 1000,
+    language: LANGUAGES.includes(source.language) ? source.language : DEFAULT_CONFIG.language,
   };
 }

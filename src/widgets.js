@@ -1,169 +1,260 @@
 // -----------------------------------------------------------------------------
-// Dashboard widgets (SDK v0.14+, Gladys 5.1+).
+// Dashboard widget (manifest `widgets`, Gladys 5.1+): `downloads`.
 //
-// A widget puts the integration's own data on the Gladys dashboard without a
-// dedicated core widget. The manifest `widgets` field declares its identity
-// (key, label, icon, optional per-instance `settings`); at runtime the
-// integration returns a DECLARATIVE content — `text`, `value`, `gauge`,
-// `status`, `chart`, `card-list`, `image`, `button` — that the core renders
-// with its own theme, dark mode and translations. No HTML, no CSS.
+// The use case, as for the pyLoad and torrent widgets of guim31: a glance at
+// the wall tablet ("is the album still downloading, how long?"). So the
+// widget shows the download speed, the downloads in progress and waiting,
+// the time left, then a status list: the state of slskd, the files
+// downloading (name, peer, percent, time left), failures, uploads, the last
+// download. A "Clear completed" button when the configuration allows it.
 //
-// Each entry of WIDGETS is keyed by the widget `key` and exposes:
-//   - get(gladys, { settings, language, units, config }): the content,
-//     registered by index.js with `gladys.onWidgetGet(key, ...)`;
-//   - action(gladys, { actionKey, params, settings, config }) (optional): a
-//     tapped `button` carrying an `action`, registered with
-//     `gladys.onWidgetAction`.
-//
-// Check your contents in the tests with `validateWidgetContent` (exported by
-// the SDK, see test/widgets.test.js), or run with DEBUG=gladys-integration-sdk
-// to have the SDK log every violation of the vocabulary and the budget.
+// Budget (8 components, 2 texts): three tiles, one status list, one button at
+// most. The figures are sent as values, not bound to device features, so the
+// widget works before the device is added to Gladys.
 // -----------------------------------------------------------------------------
 
-import {
-  createLogger,
-  DEVICE_FEATURE_CATEGORIES,
-  DEVICE_TRANSPORTS,
-  WIDGET_COLORS,
-} from '@gladysassistant/integration-sdk';
-import { identifyDevice } from './devices/index.js';
-import { weatherStation } from './devices/weatherStation.js';
-import { plug } from './devices/plug.js';
-import { light } from './devices/light.js';
+import { WIDGET_COLORS } from '@gladysassistant/integration-sdk';
+import { MB, STATUSES } from './clients/model.js';
+import { WIDGET_KEY, failing } from './hub.js';
+import { ERROR_TEXT, STATUS_TEXT, pick } from './texts.js';
+import { serverName } from './devices.js';
 
-const logger = createLogger({ name: 'widgets' });
+// Action key of the button: permanent once published.
+export const ACTIONS = Object.freeze({
+  CLEAR: 'clear_completed',
+});
+// Files downloading listed in the status rows.
+export const MAX_FILE_ROWS = 4;
+const MAX_ROWS = 10;
 
-// Widget key, as declared in the manifest `widgets` field.
-export const DEMO_STATUS_WIDGET = 'demo_status';
-
-// Keys of the `button` actions the demo_status content declares.
-const DEMO_STATUS_ACTIONS = { IDENTIFY_LIGHT: 'identify_light' };
-
-// How the plug transport reads in the status list.
-const TRANSPORT_STATUS = {
-  [DEVICE_TRANSPORTS.LOCAL]: { value: { en: 'Local', fr: 'Locale' }, color: WIDGET_COLORS.SUCCESS },
-  [DEVICE_TRANSPORTS.CLOUD]: { value: { en: 'Cloud', fr: 'Cloud' }, color: WIDGET_COLORS.INFO },
-  [DEVICE_TRANSPORTS.UNREACHABLE]: {
-    value: { en: 'Unreachable', fr: 'Injoignable' },
-    color: WIDGET_COLORS.DANGER,
+export const TEXT = {
+  pick: {
+    en: 'Enter the address of slskd in the configuration of the integration.',
+    fr: "Saisissez l'adresse de slskd dans la configuration de l'intégration.",
+    de: 'Gib die Adresse von slskd in der Konfiguration der Integration ein.',
+    es: 'Introduzca la dirección de slskd en la configuración de la integración.',
+  },
+  speed: { en: 'Speed', fr: 'Vitesse', de: 'Geschwindigkeit', es: 'Velocidad' },
+  downloads: {
+    en: 'Downloads',
+    fr: 'Téléchargements',
+    de: 'Downloads',
+    es: 'Descargas',
+  },
+  timeLeft: { en: 'Time left', fr: 'Temps restant', de: 'Restzeit', es: 'Tiempo restante' },
+  waiting: {
+    en: 'Downloads waiting',
+    fr: 'Téléchargements en attente',
+    de: 'Wartende Downloads',
+    es: 'Descargas en espera',
+  },
+  failed: {
+    en: 'Failed downloads',
+    fr: 'Téléchargements en échec',
+    de: 'Fehlgeschlagene Downloads',
+    es: 'Descargas fallidas',
+  },
+  uploads: {
+    en: 'Uploads in progress',
+    fr: 'Envois en cours',
+    de: 'Laufende Uploads',
+    es: 'Subidas en curso',
+  },
+  last: {
+    en: 'Last download',
+    fr: 'Dernier téléchargement',
+    de: 'Letzter Download',
+    es: 'Última descarga',
+  },
+  reading: { en: 'Reading…', fr: 'Lecture…', de: 'Lese…', es: 'Leyendo…' },
+  clear: {
+    en: 'Clear completed',
+    fr: 'Vider les terminés',
+    de: 'Fertige leeren',
+    es: 'Vaciar completadas',
   },
 };
 
-// A live tile references a feature by its external_id: read it from the
-// discovery payload itself, so the widget and the device never disagree.
-function featureExternalId(gladys, config, blueprint, category) {
-  const device = blueprint.buildDevice(gladys, config);
-  return device.features.find((feature) => feature.category === category).external_id;
+// Toast after a tap (≤ 200 characters).
+export const DONE_TEXT = {
+  en: (count) => `${count} completed download(s) removed from the list of slskd. The files stay.`,
+  fr: (count) =>
+    `${count} téléchargement(s) terminé(s) retiré(s) de la liste de slskd. Les fichiers restent.`,
+  de: (count) =>
+    `${count} abgeschlossene(r) Download(s) aus der Liste von slskd entfernt. Die Dateien bleiben.`,
+  es: (count) =>
+    `${count} descarga(s) completada(s) quitada(s) de la lista de slskd. Los archivos se quedan.`,
+};
+
+// Day letter of a long time left: "2 d 4 h", "2 j 4 h"…
+const DAY = { en: 'd', fr: 'j', de: 'T', es: 'd' };
+
+const t = (text, language) => pick(text, language);
+const fit = (text, max) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
+
+/** Seconds as a short duration that fits a tile (≤ 12 characters). */
+export function formatDuration(seconds, language) {
+  const minutes = Math.ceil(seconds / 60);
+  if (minutes < 60) {
+    return `${Math.max(1, minutes)} min`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours} h ${String(minutes % 60).padStart(2, '0')}`;
+  }
+  return fit(`${Math.floor(hours / 24)} ${DAY[language] ?? DAY.en} ${hours % 24} h`, 12);
 }
 
-function plugConnectionStatus(gladys, config) {
-  const { transport, degraded } = plug.transport(gladys, config);
-  const { value, color } = TRANSPORT_STATUS[transport];
-  if (degraded) {
-    return {
-      value: { en: `${value.en} (degraded mode)`, fr: `${value.fr} (mode dégradé)` },
+function message(text, language) {
+  return {
+    ttl_seconds: 300,
+    components: [{ type: 'text', variant: 'body', text: t(text, language) }],
+  };
+}
+
+const STATE_STYLE = {
+  [STATUSES.DOWNLOADING]: { icon: 'download', color: WIDGET_COLORS.SUCCESS },
+  [STATUSES.QUEUED]: { icon: 'list', color: WIDGET_COLORS.INFO },
+  [STATUSES.IDLE]: { icon: 'check', color: WIDGET_COLORS.NEUTRAL },
+  [STATUSES.DISCONNECTED]: { icon: 'wifi-off', color: WIDGET_COLORS.WARNING },
+};
+
+/** The status rows: the state of slskd, then its details when it answers. */
+export function rows(hub, language) {
+  const record = hub.record;
+  const name = fit(serverName(record.server), 40);
+  const status = hub.statusText(language);
+  if (record.error && status === t(STATUS_TEXT.unreachable, language)) {
+    return [
+      {
+        label: name,
+        icon: 'alert-triangle',
+        value: fit(t(ERROR_TEXT[record.error.kind], language), 40),
+        color: WIDGET_COLORS.DANGER,
+      },
+    ];
+  }
+  const { snapshot } = record;
+  if (!snapshot) {
+    return [
+      {
+        label: name,
+        icon: 'clock',
+        value: t(TEXT.reading, language),
+        color: WIDGET_COLORS.NEUTRAL,
+      },
+    ];
+  }
+  const items = [{ label: name, value: fit(status, 40), ...STATE_STYLE[snapshot.status] }];
+  for (const file of snapshot.downloads.slice(0, MAX_FILE_ROWS)) {
+    items.push({
+      label: fit(file.name || '?', 40),
+      icon: 'arrow-down-circle',
+      value: fit(
+        file.etaSec
+          ? `${file.percent} % · ${formatDuration(file.etaSec, language)}`
+          : `${file.percent} %`,
+        40,
+      ),
+      color: WIDGET_COLORS.INFO,
+    });
+  }
+  if (snapshot.queuedDownloads > 0) {
+    items.push({
+      label: t(TEXT.waiting, language),
+      icon: 'list',
+      value: snapshot.queuedDownloads,
+      color: WIDGET_COLORS.INFO,
+    });
+  }
+  if (snapshot.failed.length > 0) {
+    items.push({
+      label: t(TEXT.failed, language),
+      icon: 'alert-circle',
+      value: snapshot.failed.length,
       color: WIDGET_COLORS.WARNING,
+    });
+  }
+  if (snapshot.activeUploads > 0) {
+    items.push({
+      label: t(TEXT.uploads, language),
+      icon: 'upload',
+      value: snapshot.activeUploads,
+      color: WIDGET_COLORS.NEUTRAL,
+    });
+  }
+  const last = hub.lastCompleted();
+  if (last) {
+    items.push({
+      label: t(TEXT.last, language),
+      icon: 'check-circle',
+      value: fit(last, 40),
+      color: WIDGET_COLORS.NEUTRAL,
+    });
+  }
+  return items.slice(0, MAX_ROWS);
+}
+
+async function get(hub, { language = 'en' }) {
+  if (!hub.record) {
+    return message(TEXT.pick, language);
+  }
+  const { snapshot } = hub.record;
+  // A single failed reading (a blip) keeps the last figures.
+  const answering = snapshot && !failing(hub.record);
+  const components = [];
+  if (answering) {
+    const speed = snapshot.downloadSpeedBps;
+    components.push(
+      {
+        type: 'value',
+        value: Math.round((speed / MB) * 100) / 100,
+        unit: 'MB/s',
+        label: t(TEXT.speed, language),
+        icon: 'download',
+        color: speed > 0 ? WIDGET_COLORS.SUCCESS : WIDGET_COLORS.NEUTRAL,
+      },
+      {
+        type: 'value',
+        value: snapshot.activeDownloads,
+        label: t(TEXT.downloads, language),
+        icon: 'list',
+      },
+      {
+        type: 'value',
+        value: snapshot.timeLeftSec > 0 ? formatDuration(snapshot.timeLeftSec, language) : '—',
+        label: t(TEXT.timeLeft, language),
+        icon: 'clock',
+      },
+    );
+  }
+  components.push({ type: 'status', items: rows(hub, language) });
+  if (hub.config.allowClear) {
+    components.push({
+      type: 'button',
+      label: t(TEXT.clear, language),
+      icon: 'trash-2',
+      style: 'secondary',
+      action: { key: ACTIONS.CLEAR },
+    });
+  }
+  const moving = answering && snapshot.activeDownloads > 0;
+  // A download moves: refresh sooner.
+  return { ttl_seconds: moving ? 15 : 60, components };
+}
+
+async function action(hub, { actionKey }) {
+  if (actionKey === ACTIONS.CLEAR) {
+    const count = await hub.clearCompleted();
+    return {
+      message: Object.fromEntries(
+        Object.entries(DONE_TEXT).map(([language, render]) => [language, render(count)]),
+      ),
     };
   }
-  return { value, color };
+  throw new Error(`Unknown action ${actionKey}`);
 }
 
 export const WIDGETS = {
-  [DEMO_STATUS_WIDGET]: {
-    // `settings` holds the per-instance values of the declared `settings`
-    // (none here); `language` and `units` are those of the user viewing the
-    // dashboard, for the values you format yourself. Multi-language objects
-    // (`{ en, fr }`) are picked by the core, like everywhere else.
-    async get(gladys, { config }) {
-      logger.debug(`onWidgetGet <- ${DEMO_STATUS_WIDGET}`);
-      return {
-        // Reload policy: the computed parts below only change with the
-        // config, and index.js nudges the widget on every (re)connection and
-        // config update (see refreshWidgets) — the TTL is just a safety net.
-        ttl_seconds: 300,
-        components: [
-          // Device-bound tiles: LIVE, they follow the published states over
-          // the core's real-time path. No TTL, no nudge involved.
-          {
-            type: 'value',
-            label: { en: 'Temperature', fr: 'Température' },
-            icon: 'thermometer',
-            device_feature: featureExternalId(
-              gladys,
-              config,
-              weatherStation,
-              DEVICE_FEATURE_CATEGORIES.TEMPERATURE_SENSOR,
-            ),
-          },
-          {
-            type: 'value',
-            label: { en: 'Office plug', fr: 'Prise du bureau' },
-            icon: 'zap',
-            device_feature: featureExternalId(
-              gladys,
-              config,
-              plug,
-              DEVICE_FEATURE_CATEGORIES.ENERGY_SENSOR,
-            ),
-          },
-          // Computed rows: what the integration knows that no device feature
-          // carries. Served from the core cache until the TTL or a nudge.
-          {
-            type: 'status',
-            items: [
-              {
-                label: { en: 'Plug connection', fr: 'Connexion de la prise' },
-                icon: 'wifi',
-                ...plugConnectionStatus(gladys, config),
-              },
-              {
-                label: { en: 'Observed location', fr: 'Position observée' },
-                icon: 'map-pin',
-                value: `${config.latitude.toFixed(2)}, ${config.longitude.toFixed(2)}`,
-                color: WIDGET_COLORS.NEUTRAL,
-              },
-            ],
-          },
-          // `params` are declared HERE and sent back as-is: the handler never
-          // receives user input (a dashboard can hang on a public wall).
-          {
-            type: 'button',
-            label: { en: 'Identify the light', fr: 'Identifier la lampe' },
-            icon: 'eye',
-            style: 'secondary',
-            action: {
-              key: DEMO_STATUS_ACTIONS.IDENTIFY_LIGHT,
-              params: { device: light.deviceExternalId(gladys) },
-            },
-          },
-        ],
-      };
-    },
-
-    // Resolve an optional toast (string or multi-language object, ≤ 200
-    // characters). After a successful action the core drops the cached
-    // content and every open dashboard refetches it: no nudge needed.
-    async action(gladys, { actionKey, params, config }) {
-      logger.info(`onWidgetAction <- ${DEMO_STATUS_WIDGET}.${actionKey}`);
-      if (actionKey === DEMO_STATUS_ACTIONS.IDENTIFY_LIGHT) {
-        return identifyDevice(gladys, params.device, config);
-      }
-      // Throwing acks the action as failed: the message reaches the user.
-      throw new Error(`Unknown widget action: ${actionKey}`);
-    },
-  },
+  [WIDGET_KEY]: { get, action },
 };
-
-/**
- * Freshness nudge: ask the core to re-pull every widget NOW instead of
- * waiting for the content TTL. Call it when you KNOW a computed content
- * changed (here: the config, which drives the plug transport and the observed
- * location) — and after every (re)connection, since the nudges are
- * fire-and-forget: rate-limited core-side to 1 per 10 s per widget, dropped
- * silently while disconnected.
- */
-export function refreshWidgets(gladys) {
-  for (const key of Object.keys(WIDGETS)) {
-    gladys.requestWidgetRefresh(key);
-  }
-}

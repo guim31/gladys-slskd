@@ -1,0 +1,52 @@
+[
+  {
+    "username": "gladys-test-a",
+    "directories": [
+      {
+        "directory": "share",
+        "fileCount": 2,
+        "files": [
+          {
+            "id": "742e1dac-14fe-4928-ab09-137275c9caf0",
+            "username": "gladys-test-a",
+            "direction": "Upload",
+            "filename": "share\\gladys-test-free-file.txt",
+            "size": 46,
+            "state": "Completed, Succeeded",
+            "requestedAt": "2026-10-25T16:04:15.7510717",
+            "enqueuedAt": "2026-10-25T16:04:16.378067",
+            "startedAt": "2026-10-25T16:04:16.5792369Z",
+            "endedAt": "2026-10-25T16:04:16.6251076Z",
+            "bytesTransferred": 46,
+            "averageSpeed": 1002.8187928241775,
+            "attempts": 0,
+            "removed": false,
+            "bytesRemaining": 0,
+            "elapsedTime": "00:00:00.0458707",
+            "percentComplete": 100,
+            "remainingTime": "00:00:00"
+          },
+          {
+            "id": "801e82f1-728e-41d8-a4ef-879d77784eb1",
+            "username": "gladys-test-a",
+            "direction": "Upload",
+            "filename": "share\\gladys-test-free-noise.bin",
+            "size": 3000000,
+            "state": "InProgress",
+            "requestedAt": "2026-10-25T16:06:56.8980936",
+            "enqueuedAt": "2026-10-25T16:06:56.9077348",
+            "startedAt": "2026-10-25T16:06:56.9572493Z",
+            "bytesTransferred": 1310720,
+            "averageSpeed": 173303.2932941784,
+            "attempts": 0,
+            "removed": false,
+            "bytesRemaining": 1689280,
+            "elapsedTime": "00:00:12.2518339",
+            "percentComplete": 43.690666666666665,
+            "remainingTime": "00:00:09.7475354"
+          }
+        ]
+      }
+    ]
+  }
+]

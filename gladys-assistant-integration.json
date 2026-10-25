@@ -1,177 +1,554 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "slskd",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Follow slskd (Soulseek): network, downloads in progress, completed and failed, uploads, speed.",
+    "fr": "Suivez slskd (Soulseek) : réseau, téléchargements en cours, terminés, en échec, envois, vitesse.",
+    "de": "Verfolge slskd (Soulseek): Netzwerk, laufende, fertige und fehlgeschlagene Downloads, Tempo.",
+    "es": "Siga slskd (Soulseek): red, descargas en curso, completadas y fallidas, subidas, velocidad."
   },
   "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "docker_image": "ghcr.io/guim31/gladys-slskd:1.0.0",
   "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "cover_image": "https://raw.githubusercontent.com/guim31/gladys-slskd/main/cover.png",
+  "categories": ["multimedia"],
+  "transports": ["local"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": {
+        "en": "Your slskd",
+        "fr": "Votre slskd",
+        "de": "Dein slskd",
+        "es": "Su slskd"
+      },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "slskd, the Soulseek client, on your network. Create an API key in slskd.yml (web.authentication.api_keys); the readonly role is enough to follow it. Read-only by default: never searches, downloads or shares anything.",
+        "fr": "slskd, le client Soulseek, sur votre réseau. Créez une clé d'API dans slskd.yml (web.authentication.api_keys) ; le rôle readonly suffit pour le suivre. Lecture seule par défaut : ne cherche, ne télécharge et ne partage jamais rien.",
+        "de": "slskd, der Soulseek-Client, in deinem Netzwerk. Lege einen API-Schlüssel in slskd.yml an (web.authentication.api_keys); die Rolle readonly reicht zum Verfolgen. Standardmäßig nur lesend: sucht, lädt und teilt nie etwas.",
+        "es": "slskd, el cliente de Soulseek, en su red. Cree una clave de API en slskd.yml (web.authentication.api_keys); el rol readonly basta para seguirlo. Solo lectura por defecto: nunca busca, descarga ni comparte nada."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://github.com/slskd/slskd/blob/master/docs/config.md#authentication",
+          "label": {
+            "en": "API keys in the slskd documentation",
+            "fr": "Les clés d'API dans la documentation de slskd",
+            "de": "API-Schlüssel in der Dokumentation von slskd",
+            "es": "Las claves de API en la documentación de slskd"
+          }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
+      "key": "url",
+      "type": "string",
+      "label": {
+        "en": "Address",
+        "fr": "Adresse",
+        "de": "Adresse",
+        "es": "Dirección"
       },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
+      "description": {
+        "en": "IP address or name, with :port (5030 by default). https:// for HTTPS.",
+        "fr": "Adresse IP ou nom, avec :port (5030 par défaut). https:// pour le HTTPS.",
+        "de": "IP-Adresse oder Name, mit :Port (standardmäßig 5030). https:// für HTTPS.",
+        "es": "Dirección IP o nombre, con :puerto (5030 por defecto). https:// para HTTPS."
+      },
+      "placeholder": {
+        "en": "e.g. 192.168.1.10:5030",
+        "fr": "ex. 192.168.1.10:5030",
+        "de": "z. B. 192.168.1.10:5030",
+        "es": "p. ej. 192.168.1.10:5030"
+      },
       "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "default": ""
     },
     {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
+      "key": "api_key",
+      "type": "secret",
+      "label": {
+        "en": "API key",
+        "fr": "Clé d'API",
+        "de": "API-Schlüssel",
+        "es": "Clave de API"
       },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
+      "description": {
+        "en": "The key of slskd.yml. Empty only if the authentication of slskd is off.",
+        "fr": "La clé de slskd.yml. Vide seulement si l'authentification de slskd est désactivée.",
+        "de": "Der Schlüssel aus slskd.yml. Nur leer, wenn die Authentifizierung von slskd aus ist.",
+        "es": "La clave de slskd.yml. Vacía solo si la autenticación de slskd está desactivada."
+      },
+      "required": false
     },
     {
-      "key": "unit",
-      "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
+      "key": "name",
+      "type": "string",
+      "label": {
+        "en": "Name",
+        "fr": "Nom",
+        "de": "Name",
+        "es": "Nombre"
+      },
+      "description": {
+        "en": "Name of the device in Gladys. Empty: slskd followed by the address.",
+        "fr": "Nom de l'appareil dans Gladys. Vide : slskd suivi de l'adresse.",
+        "de": "Name des Geräts in Gladys. Leer: slskd gefolgt von der Adresse.",
+        "es": "Nombre del dispositivo en Gladys. Vacío: slskd seguido de la dirección."
+      },
+      "placeholder": {
+        "en": "e.g. Soulseek",
+        "fr": "ex. Soulseek",
+        "de": "z. B. Soulseek",
+        "es": "p. ej. Soulseek"
+      },
       "required": false,
-      "default": "celsius",
+      "default": ""
+    },
+    {
+      "key": "options",
+      "type": "section",
+      "label": {
+        "en": "Options",
+        "fr": "Options",
+        "de": "Optionen",
+        "es": "Opciones"
+      }
+    },
+    {
+      "key": "allow_self_signed",
+      "type": "boolean",
+      "label": {
+        "en": "Accept self-signed certificates",
+        "fr": "Accepter les certificats auto-signés",
+        "de": "Selbstsignierte Zertifikate akzeptieren",
+        "es": "Aceptar certificados autofirmados"
+      },
+      "description": {
+        "en": "For slskd served in HTTPS with its own certificate (its port 5031 by default).",
+        "fr": "Pour un slskd servi en HTTPS avec son propre certificat (son port 5031 par défaut).",
+        "de": "Für ein slskd über HTTPS mit eigenem Zertifikat (standardmäßig sein Port 5031).",
+        "es": "Para un slskd servido en HTTPS con su propio certificado (su puerto 5031 por defecto)."
+      },
+      "required": false,
+      "default": false
+    },
+    {
+      "key": "poll_interval",
+      "type": "select",
+      "label": {
+        "en": "Refresh interval",
+        "fr": "Intervalle de rafraîchissement",
+        "de": "Aktualisierungsintervall",
+        "es": "Intervalo de actualización"
+      },
+      "description": {
+        "en": "How often slskd is read: also the delay of the triggers.",
+        "fr": "Fréquence de lecture de slskd : c'est aussi le délai des déclencheurs.",
+        "de": "Wie oft slskd gelesen wird: auch die Verzögerung der Auslöser.",
+        "es": "Con qué frecuencia se lee slskd: también el retraso de los disparadores."
+      },
+      "required": false,
+      "default": "30",
       "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
+        {
+          "value": "10",
+          "label": {
+            "en": "10 seconds",
+            "fr": "10 secondes",
+            "de": "10 Sekunden",
+            "es": "10 segundos"
+          }
+        },
+        {
+          "value": "30",
+          "label": {
+            "en": "30 seconds",
+            "fr": "30 secondes",
+            "de": "30 Sekunden",
+            "es": "30 segundos"
+          }
+        },
+        {
+          "value": "60",
+          "label": {
+            "en": "1 minute",
+            "fr": "1 minute",
+            "de": "1 Minute",
+            "es": "1 minuto"
+          }
+        },
+        {
+          "value": "120",
+          "label": {
+            "en": "2 minutes",
+            "fr": "2 minutes",
+            "de": "2 Minuten",
+            "es": "2 minutos"
+          }
+        },
+        {
+          "value": "300",
+          "label": {
+            "en": "5 minutes",
+            "fr": "5 minutes",
+            "de": "5 Minuten",
+            "es": "5 minutos"
+          }
+        }
       ]
     },
     {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
+      "key": "allow_clear",
+      "type": "boolean",
+      "label": {
+        "en": "Allow clearing the completed downloads",
+        "fr": "Autoriser le nettoyage des téléchargements terminés",
+        "de": "Aufräumen fertiger Downloads erlauben",
+        "es": "Permitir vaciar las descargas completadas"
+      },
       "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
+        "en": "Lets a scene or the widget remove the completed downloads from the list of slskd (the files stay). Off by default.",
+        "fr": "Permet à une scène ou au widget de retirer les téléchargements terminés de la liste de slskd (les fichiers restent). Désactivé par défaut.",
+        "de": "Erlaubt einer Szene oder dem Widget, fertige Downloads aus der Liste von slskd zu entfernen (die Dateien bleiben). Standardmäßig aus.",
+        "es": "Permite que una escena o el widget quite las descargas completadas de la lista de slskd (los archivos se quedan). Desactivado por defecto."
       },
       "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
+      "default": false
+    },
+    {
+      "key": "language",
+      "type": "select",
+      "label": {
+        "en": "Language of the feature names",
+        "fr": "Langue des noms de fonctionnalités",
+        "de": "Sprache der Funktionsnamen",
+        "es": "Idioma de los nombres de funciones"
+      },
+      "description": {
+        "en": "Names given to the features when the device is added, and the status texts.",
+        "fr": "Noms donnés aux fonctionnalités à l'ajout de l'appareil, et textes d'état.",
+        "de": "Namen der Funktionen beim Hinzufügen des Geräts und die Statustexte.",
+        "es": "Nombres de las funciones al añadir el dispositivo y textos de estado."
+      },
+      "required": false,
+      "default": "fr",
+      "options": [
+        {
+          "value": "en",
+          "label": {
+            "en": "English",
+            "fr": "Anglais",
+            "de": "Englisch",
+            "es": "Inglés"
+          }
+        },
+        {
+          "value": "fr",
+          "label": {
+            "en": "French",
+            "fr": "Français",
+            "de": "Französisch",
+            "es": "Francés"
+          }
+        },
+        {
+          "value": "de",
+          "label": {
+            "en": "German",
+            "fr": "Allemand",
+            "de": "Deutsch",
+            "es": "Alemán"
+          }
+        },
+        {
+          "value": "es",
+          "label": {
+            "en": "Spanish",
+            "fr": "Espagnol",
+            "de": "Spanisch",
+            "es": "Español"
+          }
+        }
+      ]
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
+      "key": "test_connection",
+      "label": {
+        "en": "Test the connection",
+        "fr": "Tester la connexion",
+        "de": "Verbindung testen",
+        "es": "Probar la conexión"
+      },
+      "description": {
+        "en": "Reads slskd now and reports what it finds.",
+        "fr": "Lit slskd maintenant et indique ce qu’il trouve.",
+        "de": "Liest jetzt slskd und meldet, was es findet.",
+        "es": "Lee ahora slskd e indica lo que encuentra."
+      },
       "timeout_seconds": 30
-    },
-    {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
     }
   ],
   "scene_triggers": [
     {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
-      "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
+      "key": "download_completed",
+      "label": {
+        "en": "Download completed",
+        "fr": "Téléchargement terminé",
+        "de": "Download abgeschlossen",
+        "es": "Descarga completada"
       },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
-        },
-        {
-          "key": "target",
-          "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
-          "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
-          ]
-        }
-      ],
+      "description": {
+        "en": "A file finished downloading. Once per file.",
+        "fr": "Un fichier a fini de se télécharger. Une fois par fichier.",
+        "de": "Eine Datei ist fertig heruntergeladen. Einmal pro Datei.",
+        "es": "Un archivo ha terminado de descargarse. Una vez por archivo."
+      },
       "variables": [
         {
-          "key": "target",
+          "key": "name",
           "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
+          "label": {
+            "en": "File name",
+            "fr": "Nom du fichier",
+            "de": "Dateiname",
+            "es": "Nombre del archivo"
+          }
+        },
+        {
+          "key": "user",
+          "type": "string",
+          "label": {
+            "en": "Soulseek user",
+            "fr": "Utilisateur Soulseek",
+            "de": "Soulseek-Benutzer",
+            "es": "Usuario de Soulseek"
+          }
+        },
+        {
+          "key": "size_mb",
+          "type": "number",
+          "label": {
+            "en": "Size (MB)",
+            "fr": "Taille (Mo)",
+            "de": "Größe (MB)",
+            "es": "Tamaño (MB)"
+          }
         }
       ]
+    },
+    {
+      "key": "download_failed",
+      "label": {
+        "en": "Download failed",
+        "fr": "Téléchargement en échec",
+        "de": "Download fehlgeschlagen",
+        "es": "Descarga fallida"
+      },
+      "description": {
+        "en": "A download failed: refused by the peer, error, timed out. Once per file.",
+        "fr": "Un téléchargement a échoué : refusé par le pair, erreur, délai dépassé. Une fois par fichier.",
+        "de": "Ein Download ist fehlgeschlagen: vom Partner abgelehnt, Fehler, Zeitüberschreitung. Einmal pro Datei.",
+        "es": "Una descarga ha fallado: rechazada por el par, error, tiempo agotado. Una vez por archivo."
+      },
+      "variables": [
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "File name",
+            "fr": "Nom du fichier",
+            "de": "Dateiname",
+            "es": "Nombre del archivo"
+          }
+        },
+        {
+          "key": "user",
+          "type": "string",
+          "label": {
+            "en": "Soulseek user",
+            "fr": "Utilisateur Soulseek",
+            "de": "Soulseek-Benutzer",
+            "es": "Usuario de Soulseek"
+          }
+        },
+        {
+          "key": "reason",
+          "type": "string",
+          "label": {
+            "en": "Reason",
+            "fr": "Raison",
+            "de": "Grund",
+            "es": "Motivo"
+          }
+        }
+      ]
+    },
+    {
+      "key": "queue_empty",
+      "label": {
+        "en": "All downloads finished",
+        "fr": "Tous les téléchargements finis",
+        "de": "Alle Downloads fertig",
+        "es": "Todas las descargas terminadas"
+      },
+      "description": {
+        "en": "Nothing is left to download: the last download finished or failed.",
+        "fr": "Plus rien à télécharger : le dernier téléchargement s'est terminé ou a échoué.",
+        "de": "Nichts mehr herunterzuladen: Der letzte Download ist fertig oder fehlgeschlagen.",
+        "es": "No queda nada por descargar: la última descarga ha terminado o ha fallado."
+      }
+    },
+    {
+      "key": "network_lost",
+      "label": {
+        "en": "Soulseek network lost",
+        "fr": "Réseau Soulseek perdu",
+        "de": "Soulseek-Netzwerk verloren",
+        "es": "Red Soulseek perdida"
+      },
+      "description": {
+        "en": "slskd is no longer connected to the Soulseek server (two readings in a row).",
+        "fr": "slskd n'est plus connecté au serveur Soulseek (deux lectures de suite).",
+        "de": "slskd ist nicht mehr mit dem Soulseek-Server verbunden (zwei Lesungen hintereinander).",
+        "es": "slskd ya no está conectado al servidor de Soulseek (dos lecturas seguidas)."
+      }
+    },
+    {
+      "key": "network_restored",
+      "label": {
+        "en": "Soulseek network back",
+        "fr": "Réseau Soulseek revenu",
+        "de": "Soulseek-Netzwerk wieder da",
+        "es": "Red Soulseek recuperada"
+      },
+      "description": {
+        "en": "slskd is connected to the Soulseek server again, after a loss.",
+        "fr": "slskd est de nouveau connecté au serveur Soulseek, après une perte.",
+        "de": "slskd ist nach einem Verlust wieder mit dem Soulseek-Server verbunden.",
+        "es": "slskd vuelve a estar conectado al servidor de Soulseek, tras una pérdida."
+      }
     }
   ],
   "scene_actions": [
     {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
+      "key": "read_summary",
+      "label": {
+        "en": "Read the slskd summary",
+        "fr": "Lire le résumé slskd",
+        "de": "slskd-Zusammenfassung lesen",
+        "es": "Leer el resumen de slskd"
       },
-      "timeout_seconds": 15,
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ],
+      "description": {
+        "en": "A sentence for a message: Soulseek network, downloads in progress and waiting, failures, uploads.",
+        "fr": "Une phrase pour un message : réseau Soulseek, téléchargements en cours et en attente, échecs, envois.",
+        "de": "Ein Satz für eine Nachricht: Soulseek-Netzwerk, laufende und wartende Downloads, Fehler, Uploads.",
+        "es": "Una frase para un mensaje: red Soulseek, descargas en curso y en espera, fallos, subidas."
+      },
+      "timeout_seconds": 30,
       "outputs": [
         {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
+          "key": "summary",
+          "type": "string",
+          "label": {
+            "en": "Summary sentence",
+            "fr": "Phrase de résumé",
+            "de": "Zusammenfassungssatz",
+            "es": "Frase de resumen"
+          }
+        },
+        {
+          "key": "connected",
+          "type": "number",
+          "label": {
+            "en": "Connected to Soulseek (1/0)",
+            "fr": "Connecté à Soulseek (1/0)",
+            "de": "Mit Soulseek verbunden (1/0)",
+            "es": "Conectado a Soulseek (1/0)"
+          }
+        },
+        {
+          "key": "downloading",
+          "type": "number",
+          "label": {
+            "en": "Downloads in progress",
+            "fr": "Téléchargements en cours",
+            "de": "Laufende Downloads",
+            "es": "Descargas en curso"
+          }
+        },
+        {
+          "key": "waiting",
+          "type": "number",
+          "label": {
+            "en": "Downloads waiting",
+            "fr": "Téléchargements en attente",
+            "de": "Wartende Downloads",
+            "es": "Descargas en espera"
+          }
+        },
+        {
+          "key": "failed",
+          "type": "number",
+          "label": {
+            "en": "Downloads failed",
+            "fr": "Téléchargements en échec",
+            "de": "Fehlgeschlagene Downloads",
+            "es": "Descargas fallidas"
+          }
+        }
+      ]
+    },
+    {
+      "key": "clear_completed",
+      "label": {
+        "en": "Clear the completed downloads",
+        "fr": "Vider les téléchargements terminés",
+        "de": "Fertige Downloads leeren",
+        "es": "Vaciar las descargas completadas"
+      },
+      "description": {
+        "en": "Removes the completed downloads (succeeded or failed) from the list of slskd; the files stay. Only if allowed in the configuration.",
+        "fr": "Retire les téléchargements terminés (réussis ou en échec) de la liste de slskd ; les fichiers restent. Seulement si la configuration l'autorise.",
+        "de": "Entfernt fertige Downloads (erfolgreich oder fehlgeschlagen) aus der Liste von slskd; die Dateien bleiben. Nur wenn in der Konfiguration erlaubt.",
+        "es": "Quita las descargas completadas (correctas o fallidas) de la lista de slskd; los archivos se quedan. Solo si la configuración lo permite."
+      },
+      "timeout_seconds": 40,
+      "outputs": [
+        {
+          "key": "cleared",
+          "type": "number",
+          "label": {
+            "en": "Downloads removed from the list",
+            "fr": "Téléchargements retirés de la liste",
+            "de": "Aus der Liste entfernte Downloads",
+            "es": "Descargas quitadas de la lista"
+          }
         }
       ]
     }
   ],
   "widgets": [
     {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
+      "key": "downloads",
+      "label": {
+        "en": "slskd downloads",
+        "fr": "Téléchargements slskd",
+        "de": "slskd-Downloads",
+        "es": "Descargas slskd"
       },
-      "icon": "activity",
-      "action_timeout_seconds": 15
+      "description": {
+        "en": "Speed, downloads in progress with their percent and time left, failures, uploads, last download.",
+        "fr": "Vitesse, téléchargements en cours (pourcentage, temps restant), échecs, envois, dernier fichier.",
+        "de": "Tempo, laufende Downloads mit Prozent und Restzeit, Fehler, Uploads, letzter Download.",
+        "es": "Velocidad, descargas en curso con porcentaje y tiempo restante, fallos, subidas, última descarga."
+      },
+      "icon": "download",
+      "action_timeout_seconds": 40
     }
   ]
 }

@@ -1,67 +1,149 @@
-# Template de démonstration
+# slskd
 
-Ceci est la documentation utilisateur de l'intégration. Gladys ré-héberge ce
-fichier et affiche un lien **Documentation** permanent vers lui dans l'écran
-de configuration (dans la langue de l'utilisateur, avec l'anglais en repli) —
-c'est au moment de configurer que l'utilisateur en a le plus besoin. Gardez
-les courtes indications d'accueil dans les blocs `section` du `config_schema`
-du manifest ; mettez ici le pas-à-pas détaillé (captures d'écran, dépannage…).
+Suivez [slskd](https://github.com/slskd/slskd) depuis Gladys : le client Soulseek moderne,
+installé sur un NAS ou un serveur maison (Docker, Unraid…), avec son interface web et son API.
+L'intégration lit l'API locale de slskd : la vitesse et les téléchargements s'affichent sur le
+tableau de bord, et Gladys peut vous prévenir quand un fichier est téléchargé, quand un
+téléchargement a échoué, quand tout est fini, ou quand slskd a perdu le réseau Soulseek.
 
-## Ce que vous obtenez
+L'intégration ne fait que lire. Elle ne cherche, ne télécharge, ne partage et n'envoie jamais
+rien sur le réseau Soulseek : cela reste votre affaire, dans slskd. Sa seule commande, désactivée
+par défaut, retire les téléchargements terminés de la liste de slskd (les fichiers restent sur le
+disque).
 
-Six appareils de démonstration apparaissent après l'installation : une
-station météo (vraies données Open-Meteo), un interrupteur, une lampe
-variable, une prise connectée avec mesure de puissance, un détecteur de
-mouvement et une caméra.
+Testée sur un vrai slskd 0.26.2 (deux instances qui s'échangent des fichiers de test libres sur
+le réseau Soulseek), pas encore dans un vrai Gladys : vos retours sont les bienvenus sur
+[GitHub](https://github.com/guim31/gladys-slskd/issues).
+
+## Prérequis
+
+- Gladys 5.1.0 ou plus récent.
+- slskd joignable depuis le serveur Gladys (même réseau), sur son port HTTP (5030 par défaut) ou
+  son port HTTPS (5031).
+- Une **clé d'API** de slskd. Ajoutez-en une dans `slskd.yml`, puis redémarrez slskd :
+
+  ```yaml
+  web:
+    authentication:
+      api_keys:
+        gladys:
+          key: <16 à 255 caractères de votre choix>
+          role: readonly # readwrite si vous autorisez le nettoyage
+          cidr: 192.168.1.0/24 # le réseau de Gladys
+  ```
+
+  Ou avec la variable d'environnement `SLSKD_API_KEY` (la clé principale de slskd). Sans
+  authentification dans slskd (`SLSKD_NO_AUTH`, ou `web.authentication.disabled: true`),
+  laissez la clé vide.
 
 ## Configuration
 
-1. Ouvrez l'onglet **Configuration** de l'intégration.
-2. Renseignez la **latitude** et la **longitude** que la station météo de
-   démonstration doit observer (Paris par défaut), et choisissez votre unité
-   de température. L'**intervalle de rafraîchissement** règle la fréquence
-   de lecture de la station météo et de la puissance de la prise : toutes
-   les 5 minutes par défaut, toutes les minutes au plus.
-3. Enregistrez : les appareils apparaissent dans l'onglet **Découverte**,
-   prêts à être ajoutés.
+- **Adresse** : l'adresse IP ou le nom, avec le port : `192.168.1.10:5030`. Sans port, 5030 est
+  ajouté. Écrivez `https://` pour le HTTPS, et le chemin si slskd tourne sous un `url_base` ou
+  derrière un reverse proxy (`https://example.com/slskd`).
+- **Clé d'API** : la clé de `slskd.yml`.
+- **Nom** : le nom de l'appareil dans Gladys (vide : slskd suivi de l'adresse).
+- **Accepter les certificats auto-signés** : pour un slskd servi en HTTPS avec son propre
+  certificat.
+- **Intervalle de rafraîchissement** : la fréquence de lecture de slskd, de 10 secondes à
+  5 minutes (30 secondes par défaut). C'est aussi le délai des déclencheurs. Une lecture coûte
+  trois appels à l'API locale, rien sur le réseau Soulseek.
+- **Autoriser le nettoyage des téléchargements terminés** : permet à une scène ou au widget de
+  vider la liste des téléchargements terminés. Désactivé par défaut.
+- **Langue des noms de fonctionnalités** : les noms donnés aux fonctionnalités quand vous ajoutez
+  l'appareil, et les textes d'état.
 
-Le réglage **Préférer la connexion locale** pilote la prise de
-démonstration : elle affiche en badge le canal réellement utilisé (local ou
-cloud), avec un point orange quand elle fonctionne en mode dégradé (local
-refusé, bascule cloud).
+**Tester la connexion** lit slskd tout de suite et dit ce qu'elle trouve : version, réseau
+Soulseek, téléchargements.
 
-## Actions
+Ensuite, dans **Découverte**, ajoutez l'appareil.
 
-- **Tester le fournisseur météo** — effectue une requête en direct vers
-  Open-Meteo et affiche la température et l'humidité actuelles sous le
-  bouton.
-- **Identifier un appareil** — choisissez un de vos appareils dans la liste
-  et il se signale (la lampe de démonstration « clignote » dans les logs).
+## Appareils
 
-## Scènes
+Un appareil, en lecture seule :
 
-L'intégration ajoute ses propres cartes à l'éditeur de scènes (Gladys 5.1
-ou plus récent), dans la catégorie **Intégrations** :
+| Fonctionnalité             | Contenu                                                                                    |
+| -------------------------- | ------------------------------------------------------------------------------------------ |
+| Vitesse de téléchargement  | Ko/s, les téléchargements en cours                                                         |
+| Vitesse d'envoi            | Ko/s, ce que d'autres utilisateurs Soulseek téléchargent chez vous                         |
+| Téléchargements en cours   | fichiers en cours de transfert                                                             |
+| Téléchargements en attente | fichiers demandés, en file d'attente (la vôtre ou celle du pair), ou entre deux tentatives |
+| Téléchargements terminés   | fichiers téléchargés, dans la liste de slskd (jusqu'à son nettoyage)                       |
+| Téléchargements en échec   | fichiers refusés par le pair, en erreur ou expirés, dans la liste de slskd                 |
+| Envois en cours            | fichiers que d'autres utilisateurs téléchargent chez vous en ce moment                     |
+| État                       | Téléchargement, En attente, Inactif, Soulseek déconnecté, ou Injoignable                   |
+| Dernier téléchargement     | nom du dernier fichier terminé                                                             |
 
-- **Mouvement détecté** (déclencheur) — lance la scène quand un détecteur
-  de démonstration voit bouger quelque chose. Choisissez éventuellement le
-  détecteur et ce qui a bougé (personne, animal) ; laissés vides, toute
-  détection correspond. Les actions suivantes peuvent lire ce qui a bougé
-  avec `{{triggerEvent.data.target}}`.
-- **Identifier un appareil** (action) — fait se signaler l'appareil choisi.
-  Elle indique si l'appareil a pu se signaler, pour que les actions
-  suivantes puissent en dépendre.
+L'appareil affiche le badge **injoignable** quand slskd ne répond pas.
 
-## Tableau de bord
+## Widget
 
-Ajoutez le widget **État de la démo** à un tableau de bord : il affiche en
-direct la température de la station météo et la puissance de la prise du
-bureau, la connexion utilisée par la prise (en orange si dégradée) et la
-position observée. Son bouton **Identifier la lampe** fait se signaler la
-lampe de démonstration.
+**Téléchargements slskd** affiche la vitesse de téléchargement, les téléchargements en cours (et
+en attente), le temps restant, puis l'état de slskd, les fichiers en cours avec leur pourcentage
+et leur temps restant, les téléchargements en échec, les envois et le dernier téléchargement.
+Quand le nettoyage est autorisé, un bouton **Vider les terminés** vide la liste des
+téléchargements terminés.
+
+## Déclencheurs de scène
+
+- **Téléchargement terminé** : un fichier a fini de se télécharger, une fois par fichier.
+  Variables : nom du fichier, utilisateur Soulseek, taille (Mo).
+- **Téléchargement en échec** : un téléchargement a échoué (refusé par le pair, erreur, délai
+  dépassé), une fois par fichier. Variables : nom du fichier, utilisateur Soulseek, raison. Un
+  téléchargement que vous annulez vous-même n'est pas un échec.
+- **Tous les téléchargements finis** : plus rien à télécharger, le dernier téléchargement s'est
+  terminé ou a échoué.
+- **Réseau Soulseek perdu** : slskd n'est plus connecté au serveur Soulseek, sur deux lectures de
+  suite (slskd se reconnecte seul en quelques secondes : une micro-coupure n'est pas annoncée).
+- **Réseau Soulseek revenu** : slskd est de nouveau connecté, après une perte.
+
+Après un redémarrage de l'intégration, ce qui s'est passé entre-temps est annoncé ; la liste déjà
+présente au premier démarrage ne l'est pas.
+
+## Actions de scène
+
+- **Lire le résumé slskd** : une phrase pour un message (« Soulseek : connecté à Soulseek, 2
+  téléchargement(s) en cours, 1 en attente (850 KB/s) »), et les chiffres : connecté (1/0),
+  téléchargements en cours, en attente, en échec.
+- **Vider les téléchargements terminés** : retire les téléchargements terminés (réussis, en échec
+  ou annulés) de la liste de slskd ; les fichiers restent sur le disque. Refusée tant que
+  **Autoriser le nettoyage des téléchargements terminés** est désactivé. Sortie : les
+  téléchargements retirés de la liste.
+
+## Exemples de scènes
+
+- **Album téléchargé** : déclencheur **Téléchargement terminé**, action « Envoyer un message » :
+  « Téléchargé : {{name}} de {{user}} ».
+- **Point du soir** : tous les jours à 21 h, **Lire le résumé slskd**, puis envoyer la phrase sur
+  Telegram.
+- **Soulseek en panne** : déclencheur **Réseau Soulseek perdu**, action « Envoyer un message »
+  pour vérifier le compte ou le VPN de slskd ; **Réseau Soulseek revenu** pour dire que tout va
+  bien.
+- **Liste propre** : déclencheur **Tous les téléchargements finis**, action **Vider les
+  téléchargements terminés** (avec le nettoyage autorisé).
 
 ## Dépannage
 
-L'intégration journalise tout ce qu'elle fait : consultez les logs de
-l'intégration depuis l'interface Gladys (ou `docker logs` sur l'hôte) avec
-`LOG_LEVEL=debug` pour le détail complet.
+- **Clé d'API refusée** : vérifiez la clé dans `slskd.yml`, et que l'adresse de Gladys est dans
+  son `cidr`. slskd relit sa configuration à l'enregistrement ; redémarrez-le en cas de doute.
+  Puis enregistrez la configuration de l'intégration : une clé refusée n'est pas retentée toute
+  seule, pour ne pas remplir le journal de slskd.
+- **slskd ne répond pas** : vérifiez l'adresse et le port (5030), et que le serveur Gladys joint
+  slskd (pare-feu, réseau Docker).
+- **Pas de slskd à cette adresse** : l'adresse répond, mais pas avec l'API de slskd. Vérifiez le
+  port, ou le chemin derrière un reverse proxy.
+- **Le rôle de la clé d'API ne le permet pas** : le nettoyage demande une clé `readwrite`.
+- **Soulseek déconnecté** : slskd répond mais n'est pas connecté à Soulseek : compte, mot de
+  passe, ou réseau de slskd (VPN). Voir le journal de slskd.
+
+## Limites
+
+- Un seul slskd par intégration.
+- Lecture seule, volontairement : ni recherche, ni téléchargement, ni partage, ni message sur
+  Soulseek.
+- Les compteurs de téléchargements terminés et en échec suivent la liste de slskd : ils baissent
+  quand vous la videz.
+- Le délai des déclencheurs est l'intervalle de rafraîchissement. Un téléchargement qui commence
+  et finit entre deux lectures est quand même annoncé, tant qu'il est encore dans la liste.
+- Une nouvelle adresse repart de zéro : ce qui s'est terminé pendant le changement n'est pas annoncé.
+- Sans lien avec slskd ni Soulseek.

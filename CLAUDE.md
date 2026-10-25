@@ -17,7 +17,7 @@ its only runtime dependency. It started from the official JavaScript template.
 npm install
 npm test                                  # node --test, the built-in runner
 node --test test/devices.test.js          # one file
-node --test --test-name-pattern "plug"    # tests whose name matches
+node --test --test-name-pattern "widget"    # tests whose name matches
 npm run lint                              # ESLint
 npm run format:check                      # Prettier, as the CI runs it
 npm run format                            # Prettier, fix in place
@@ -31,16 +31,21 @@ pushing.
 ## Architecture
 
 ```
-index.js                          SDK wiring only: handlers registered before connect()
-src/devices/index.js              registry of the device blueprints + dispatch helpers
-src/devices/<type>.js             one device type per file (buildDevice, onPoll, onSetValue...)
+index.js                          SDK wiring only: registerHandlers, then connect()
+src/app.js                        every SDK handler, on the hub (also driven by the tests)
+src/hub.js                        the slskd record: timer, states, scene events, commands
+src/devices.js                    the device: features, names in four languages, states
+src/clients/slskd.js              REST client of slskd (/api/v0, X-API-Key)
+src/clients/model.js              the snapshot: transfer states, speeds, times
+src/clients/http.js, errors.js    node:http(s) seam, error kinds
 src/scenes.js                     scene action handlers (manifest `scene_actions`)
-src/widgets.js                    dashboard widget handlers (manifest `widgets`)
-src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
-src/weather.js                    example driver (Open-Meteo)
+src/widgets.js                    dashboard widget (manifest `widgets`)
+src/texts.js                      texts sent to Gladys, four languages
+src/config.js, src/store.js       configuration, /data persistence
 gladys-assistant-integration.json manifest: name, config_schema, actions, image...
-docs/en.md, docs/fr.md            user documentation, re-hosted by Gladys (mandatory)
-test/                             node --test, against the SDK's fake Gladys (integration-sdk/testing)
+docs/{en,fr,de,es}.md             user documentation, re-hosted by Gladys (en and fr mandatory)
+test/                             node --test, against the SDK's fake Gladys and a fake slskd
+test/fixtures/slskd               real answers of slskd 0.26.2, anonymised
 .github/scripts/release.mjs       release helpers (manifest bump, changelog), tested in test/
 ```
 
@@ -70,8 +75,9 @@ test/                             node --test, against the SDK's fake Gladys (in
   `type: "provider"`: 5.1.0). `test/manifest.test.js` ties the manifest to the
   code (defaults, action, scene and widget handlers): change both sides
   together.
-- **User-facing text** is bilingual (English and French): action messages,
-  manifest texts, and `docs/en.md` / `docs/fr.md`, kept in sync.
+- **User-facing text** is in four languages (English, French, German, Spanish):
+  action messages, manifest texts, and `docs/{en,fr,de,es}.md`, kept in sync
+  (`test/i18n.test.js`).
 - **Style.** Prettier formats, ESLint catches mistakes. Comments explain why,
   in English. Tests never touch the network.
 
@@ -233,3 +239,29 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
 - Docs `en`, `fr`, `de`, `es` avec les mêmes sections.
 - Chauffe, ouverture, sécurité : ne rien rendre pilotable « comme un thermostat » ou par un assistant
   vocal quand une erreur serait dangereuse (leçon d'OctoPrint).
+
+## slskd (propre à cette intégration)
+
+- API REST `/api/v0`, clé dans `X-API-Key` (`web.authentication.api_keys` de `slskd.yml`, ou
+  `SLSKD_API_KEY`). Vérifié sur slskd 0.26.2 réel : 401 corps vide pour une clé absente ou fausse,
+  403 pour un rôle insuffisant (`/api/v0/server` exige le rôle administrateur : l'état du serveur
+  Soulseek se lit dans `/api/v0/application`, `server.isLoggedIn`, lisible par une clé `readonly`).
+  Curiosité relevée : en 0.26.2, une clé `readonly` a pu faire `DELETE .../all/completed` (204).
+- Transferts : utilisateurs → dossiers → fichiers ; état en drapeaux (« Completed, Succeeded »,
+  « Completed, Rejected », « Completed, Errored », « InProgress », « Queued, Locally »…). Un pair
+  hors ligne remet le téléchargement en « Queued, Locally » **avec une exception** entre ses
+  tentatives (ce n'est pas encore un échec), puis « Completed, Errored » après la troisième.
+  `averageSpeed` peut être **négatif** entre deux tentatives, `remainingTime` aussi : borner à 0.
+- Retélécharger le même fichier **remplace** l'ancien transfert par un nouveau (nouvel id) : les
+  déclencheurs se fondent sur l'id (GUID), jamais sur le nom.
+- `DELETE /api/v0/transfers/downloads/all/completed` (204) retire de la liste **tous** les terminés,
+  réussis, en échec et annulés ; les fichiers restent.
+- Pas de vrai `remove` sur un transfert terminé : `DELETE .../downloads/{user}/{id}` ne fait
+  qu'annuler.
+- Le réseau Soulseek « perdu » n'est annoncé qu'après deux lectures déconnectées (une relecture
+  15 s après la première) : slskd se reconnecte seul en quelques secondes.
+- Test réel : deux conteneurs slskd connectés au vrai réseau Soulseek (comptes inventés) ne se
+  joignent pas, car le serveur leur donne l'IP publique (NAT sans redirection). Parade de la
+  session : un conteneur `alpine` dans l'espace réseau de chaque slskd (`--network
+container:…`, `NET_ADMIN`) qui fait un DNAT de « IP publique:port de l'autre » vers l'IP Docker
+  de l'autre ; `tc` dans ce même conteneur pour ralentir un envoi et voir un « InProgress ».

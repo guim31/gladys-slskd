@@ -1,41 +1,31 @@
 // -----------------------------------------------------------------------------
-// Scene actions (SDK v0.14+, Gladys 5.1+).
+// Scene action handlers (manifest `scene_actions`, Gladys 5.1+).
 //
-// A scene action is an OPERATION a scene author places in a scene, with
-// parameters and a result: "identify this device", "take a snapshot", "clean
-// these rooms". Each one is declared in the manifest `scene_actions` field
-// (key, label, `fields` in the config_schema grammar, scalar `outputs`) and
-// handled here, keyed by that same `key`; index.js registers every entry with
-// `gladys.onSceneAction(key, ...)`.
-//
-// Scene TRIGGERS are the other direction ("this happened"): they are fired by
-// the device that observes the event, see src/devices/motionSensor.js.
-//
-// The rules that matter:
-//   - `fields` arrive RESOLVED: scene variables substituted, defaults applied,
-//     validated by the core; a `"source": "devices"` field is the chosen
-//     device external_id;
-//   - resolve an object of the declared `outputs` (scalars only), readable by
-//     the following actions of the scene, or `undefined` for none. Keys not
-//     declared in the manifest are dropped by the core;
-//   - throwing fails THIS action only: the scene logs it and continues. A
-//     scene action is never a condition: return an output and let the scene
-//     author gate on it;
-//   - never fire a scene event as a consequence of a received action: a scene
-//     bound to that event would loop through the integration.
+// "Read the slskd summary" gives a sentence for a message (Telegram, the
+// speaker…) and the figures as outputs. "Clear completed downloads" empties
+// the list of slskd (the files stay on disk), only when the configuration
+// allows it. Nothing that searches, downloads or shares: the Soulseek network
+// stays the user's business, in slskd.
 // -----------------------------------------------------------------------------
 
-import { createLogger } from '@gladysassistant/integration-sdk';
-import { signalDevice } from './devices/index.js';
-
-const logger = createLogger({ name: 'scenes' });
+import { pick } from './texts.js';
 
 export const SCENE_ACTIONS = {
-  // The ack is awaited under the action's `timeout_seconds` (15 s in the
-  // manifest), counted from the moment the scene reaches the action.
-  async identify_device(gladys, { fields, config }) {
-    logger.info(`Scene action identify_device <- ${fields.device}`);
-    const signalled = await signalDevice(gladys, fields.device, config);
-    return { signalled };
+  async read_summary(hub) {
+    // Read now: the sentence says what is true at the time of the scene.
+    await hub.pollAll({ manual: true });
+    const snapshot = hub.record && !hub.record.error ? hub.record.snapshot : null;
+    return {
+      summary: pick(hub.describe(), hub.config.language),
+      connected: snapshot?.connected ? 1 : 0,
+      downloading: snapshot?.activeDownloads ?? 0,
+      waiting: snapshot?.queuedDownloads ?? 0,
+      failed: snapshot?.failed.length ?? 0,
+    };
+  },
+
+  async clear_completed(hub) {
+    const cleared = await hub.clearCompleted();
+    return { cleared };
   },
 };
